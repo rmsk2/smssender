@@ -12,6 +12,12 @@ import (
 	"go.bug.st/serial"
 )
 
+type Modem interface {
+	Init() error
+	SendMessage(phoneNr string, message string) error
+	Close()
+}
+
 type GsmModem struct {
 	simPin string
 	port   serial.Port

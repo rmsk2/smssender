@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"gsmmodem/tools"
 	"io"
@@ -38,7 +39,7 @@ type smsSender struct {
 	simPin             string
 	port               string
 	senderQueue        chan SendRequest
-	modem              *GsmModem
+	modem              Modem
 }
 
 func newSmsSender() *smsSender {
@@ -53,8 +54,6 @@ func newSmsSender() *smsSender {
 		senderQueue:        make(chan SendRequest, 10),
 		port:               "/dev/ttyUSB0",
 	}
-
-	go res.smsProcessor()
 
 	return &res
 }
@@ -182,22 +181,33 @@ func (s *smsSender) evalEnvironment() error {
 	return nil
 }
 
-func (s *smsSender) genExampleToken() {
+func (s *smsSender) genToken(subject string) {
 	jwt := tools.NewHs256Jwt(s.tokenSecret)
-	claims := tools.MakeClaims("Egal", s.allowedAudience, s.expectedIssuerName)
+	claims := tools.MakeClaims(subject, s.allowedAudience, s.expectedIssuerName)
 	token, _ := jwt.CreateJwt(claims)
 	fmt.Println(token)
 }
 
 func main() {
-	sender := newSmsSender()
+	smsSenderFlags := flag.NewFlagSet("gsmmodem", flag.ContinueOnError)
+	tokenSubject := smsSenderFlags.String("t", "", "Generate token and exit")
 
-	err := sender.evalEnvironment()
+	err := smsSenderFlags.Parse(os.Args[1:])
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(42)
+	}
+
+	sender := newSmsSender()
+	err = sender.evalEnvironment()
 	if err != nil {
 		log.Fatal("Unable to eval environment: ", err)
 	}
 
-	sender.genExampleToken()
+	if *tokenSubject != "" {
+		sender.genToken(*tokenSubject)
+		os.Exit(0)
+	}
 
 	caCert, err := os.ReadFile(sender.fileNameRoot)
 	if err != nil {
@@ -229,6 +239,8 @@ func main() {
 	}
 	defer sender.modem.Close()
 	log.Println("Modem is initialized")
+
+	go sender.smsProcessor()
 
 	err = server.ListenAndServeTLS(sender.fileNameCert, sender.fileNameKey)
 	if err != nil {
