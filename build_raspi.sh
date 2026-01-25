@@ -1,0 +1,1 @@
+GOOS=linux GOARCH=arm GOARM=8 go build
