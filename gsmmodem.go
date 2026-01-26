@@ -64,34 +64,40 @@ func truncate(s string, maxChars int) string {
 }
 
 func transformMessageText(msg string) string {
-	res := ""
+	var b strings.Builder
 
+	// truncate to at most 160 runes
 	msg = truncate(msg, 160)
 
+	// Encode the german Umlauts as the values found through
+	// experimentation which are displayed correctly on my
+	// mobile phone
 	for _, c := range msg {
 		switch c {
 		case 'ä':
-			res += "ae"
+			b.WriteByte(0x84)
 		case 'ü':
-			res += "ue"
+			b.WriteByte(0x81)
 		case 'ö':
-			res += "oe"
+			b.WriteByte(0x94)
 		case 'Ä':
-			res += "Ae"
+			b.WriteByte(0x8E)
 		case 'Ü':
-			res += "Ue"
+			b.WriteByte(0x9a)
 		case 'Ö':
-			res += "Oe"
+			b.WriteByte(0x99)
 		case 'ß':
-			res += "ss"
+			b.WriteByte(0xe1)
 		default:
-			res += string(c)
+			b.WriteRune(c)
 		}
 	}
 
-	res = truncate(res, 160)
+	resBytes := []byte(b.String())
 
-	return res
+	// The string has probably been changed into a byte vector which is not properly
+	// UTF-8 encoded, so we can not call truncate again
+	return string(resBytes[:min(160, len(resBytes))])
 }
 
 func (g *GsmModem) sendModemCommand(command string) error {
