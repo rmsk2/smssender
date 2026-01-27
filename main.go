@@ -11,9 +11,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
-const programVersion = "0.1.0"
+const programVersion = "1.0.0"
 const gsmModemFileRoot = "GSM_MODEM_FILE_ROOT"
 const gsmModemAllowedAudience = "GSM_MODEM_ALLOWED_AUDIENCE"
 const gsmModemHmacSecret = "GSM_MODEM_HMAC_SECRET"
@@ -40,6 +42,7 @@ type smsSender struct {
 	port               string
 	senderQueue        chan SendRequest
 	modem              Modem
+	doStop             bool
 }
 
 func newSmsSender() *smsSender {
@@ -53,6 +56,7 @@ func newSmsSender() *smsSender {
 		simPin:             "0000",
 		senderQueue:        make(chan SendRequest, 10),
 		port:               "/dev/ttyUSB0",
+		doStop:             false,
 	}
 
 	return &res
@@ -118,8 +122,11 @@ func (s *smsSender) initModem() error {
 }
 
 func (s *smsSender) smsProcessor() {
-	for {
+	for !s.doStop {
 		request := <-s.senderQueue
+		if s.doStop {
+			break
+		}
 
 		log.Printf("Sending message to '%s'", request.PhoneNr)
 
@@ -133,6 +140,11 @@ func (s *smsSender) smsProcessor() {
 
 		log.Printf("Message successfully sent to '%s'", request.PhoneNr)
 	}
+
+	log.Println("Closing modem")
+	s.modem.Close()
+	log.Println("Modem closed")
+	os.Exit(0)
 }
 
 func (s *smsSender) evalEnvironment() error {
@@ -179,6 +191,16 @@ func (s *smsSender) evalEnvironment() error {
 	}
 
 	return nil
+}
+
+func (s *smsSender) InstallSignalHandler() {
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		<-sigChan
+		s.doStop = true
+		close(s.senderQueue)
+	}()
 }
 
 func (s *smsSender) genToken(subject string) {
@@ -232,15 +254,16 @@ func main() {
 
 	http.HandleFunc("POST /localsender/send", sender.sendFunc)
 
+	log.Printf("SMS-Sender. Version: %s", programVersion)
 	log.Println("Initializing modem")
 	err = sender.initModem()
 	if err != nil {
 		log.Fatal("Unable to initialize modem: ", err)
 	}
-	defer sender.modem.Close()
 	log.Println("Modem is initialized")
 
 	go sender.smsProcessor()
+	sender.InstallSignalHandler()
 
 	err = server.ListenAndServeTLS(sender.fileNameCert, sender.fileNameKey)
 	if err != nil {
