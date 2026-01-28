@@ -12,7 +12,7 @@ allows to send SMS messages to arbitrary recipients.
 # Building and installing
 The software depends on [go.bug.st/serial](https://github.com/bugst/go-serial), a library which allows go code to talk to RS-232
 serial devices. After installing `go-serial` the service can be built by executing `go build`. A primitive script (`build_raspi.sh`) 
-which performs cross compilation to an ARMv8 Linux target (i.e. a Respberry PI 3 or later) is also provided. When started the
+which performs cross compilation to a (64 bit) ARMv8  Linux target (i.e. a Raspberry Pi 3 or later) is also provided. When started the
 following environment variables can be set in order to configure the behaviour of `smssender`.
 
 # Calling the REST service
