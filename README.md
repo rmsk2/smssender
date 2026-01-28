@@ -25,7 +25,7 @@ set in order to configure the behaviour of `smssender`.
 |`GSM_MODEM_FILE_CERT`| File which holds the TLS server cert used by `smssender`. Default value: `server.crt`|
 |`GSM_MODEM_FILE_KEY`| File which holds the TLS server cert private key used by `smssender`. Default value: `server.pem`|
 |`GSM_MODEM_NAME_ISSUER`| The expected `iss` value in the JWT. Default value: `daheim_token_issuer`|
-|`GSM_MODEM_SIM_PIN`| The SIM card PIN of the SIM in the modem. Default value: `0000`|
+|`GSM_MODEM_SIM_PIN`| The PIN of the SIM card in the modem. Default value: `0000`|
 |`GSM_MODEM_PORT`| The serial device to to be used. Default value: `/dev/ttyUSB0`|
 
 As the software needs to be executed on a machine to which a modem is connected it is a bit difficult to run it in a kubernetes cluster.
