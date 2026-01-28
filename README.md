@@ -19,14 +19,14 @@ set in order to configure the behaviour of `smssender`.
 
 | Variable | Value |
 |-|-|
-|`GSM_MODEM_FILE_ROOT`| Name of a file in which the root certificate for the server cert is stored. Default value `private-tls-ca.pem`. |
-|`GSM_MODEM_ALLOWED_AUDIENCE`| The expected `aud` value in the JWT. Default value `local_sms_sender`|
-|`GSM_MODEM_HMAC_SECRET`| The HMAC secret to generate and verify JWTs. Default value `a-string-secret-at-least-256-bits-long`|
-|`GSM_MODEM_FILE_CERT`| File which holds the TLS server cert used by `smssender`. Default `server.crt`|
-|`GSM_MODEM_FILE_KEY`| File which holds the TLS server cert private key used by `smssender`. Default `server.pem`|
-|`GSM_MODEM_NAME_ISSUER`| The expected `iss` value in the JWT. Default value `daheim_token_issuer`|
-|`GSM_MODEM_SIM_PIN`| The SIM card PIN of the SIM in the modem. Default value `0000`|
-|`GSM_MODEM_PORT`| The serial device to to be used. Default value `/dev/ttyUSB0`|
+|`GSM_MODEM_FILE_ROOT`| Name of a file in which the root certificate for the server cert is stored. Default value: `private-tls-ca.pem`. |
+|`GSM_MODEM_ALLOWED_AUDIENCE`| The expected `aud` value in the JWT. Default value: `local_sms_sender`|
+|`GSM_MODEM_HMAC_SECRET`| The HMAC secret to generate and verify JWTs. Default value: `a-string-secret-at-least-256-bits-long`|
+|`GSM_MODEM_FILE_CERT`| File which holds the TLS server cert used by `smssender`. Default value: `server.crt`|
+|`GSM_MODEM_FILE_KEY`| File which holds the TLS server cert private key used by `smssender`. Default value: `server.pem`|
+|`GSM_MODEM_NAME_ISSUER`| The expected `iss` value in the JWT. Default value: `daheim_token_issuer`|
+|`GSM_MODEM_SIM_PIN`| The SIM card PIN of the SIM in the modem. Default value: `0000`|
+|`GSM_MODEM_PORT`| The serial device to to be used. Default value: `/dev/ttyUSB0`|
 
 As the software needs to be executed on a machine to which a modem is connected it is a bit difficult to run it in a kubernetes cluster.
 When started with the option `-t` `smssender` creates a JWT and exits. This can be used to generate a token for `mobilenotifier`.
