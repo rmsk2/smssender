@@ -12,10 +12,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 )
 
-const programVersion = "1.0.0"
+const programVersion = "1.0.2"
 const gsmModemFileRoot = "GSM_MODEM_FILE_ROOT"
 const gsmModemAllowedAudience = "GSM_MODEM_ALLOWED_AUDIENCE"
 const gsmModemHmacSecret = "GSM_MODEM_HMAC_SECRET"
@@ -23,7 +24,8 @@ const gsmModemFileCert = "GSM_MODEM_FILE_CERT"
 const gsmModemFileKey = "GSM_MODEM_FILE_KEY"
 const gsmModemNameIssuer = "GSM_MODEM_NAME_ISSUER"
 const gsmModemSimPin = "GSM_MODEM_SIM_PIN"
-const gsmmodemPort = "GSM_MODEM_PORT"
+const gsmmodemPort = "GSM_MODEM_SERIAL_PORT"
+const gsmmodemServerPort = "GSM_MODEM_LISTENER_PORT"
 const authHeaderName = "X-Token"
 
 type SendRequest struct {
@@ -43,6 +45,7 @@ type smsSender struct {
 	senderQueue        chan SendRequest
 	modem              Modem
 	doStop             bool
+	serverPort         uint16
 }
 
 func newSmsSender() *smsSender {
@@ -57,6 +60,7 @@ func newSmsSender() *smsSender {
 		senderQueue:        make(chan SendRequest, 10),
 		port:               "/dev/ttyUSB0",
 		doStop:             false,
+		serverPort:         4443,
 	}
 
 	return &res
@@ -170,9 +174,9 @@ func (s *smsSender) evalEnvironment() error {
 		s.fileNameKey = temp
 	}
 
-	temp, ok = os.LookupEnv(gsmModemSimPin)
-	if ok {
-		s.simPin = temp
+	s.simPin, ok = os.LookupEnv(gsmModemSimPin)
+	if !ok {
+		return fmt.Errorf("You have to specify a PIN for the SIM card in the modem")
 	}
 
 	temp, ok = os.LookupEnv(gsmModemHmacSecret)
@@ -188,6 +192,16 @@ func (s *smsSender) evalEnvironment() error {
 	temp, ok = os.LookupEnv(gsmmodemPort)
 	if ok {
 		s.port = temp
+	}
+
+	temp, ok = os.LookupEnv(gsmmodemServerPort)
+	if ok {
+		p, err := strconv.ParseUint(temp, 10, 16)
+		if err != nil {
+			return fmt.Errorf("Illegal port number: %v", err)
+		}
+
+		s.serverPort = uint16(p)
 	}
 
 	return nil
@@ -248,7 +262,7 @@ func main() {
 	}
 
 	server := &http.Server{
-		Addr:      ":4443",
+		Addr:      fmt.Sprintf(":%d", sender.serverPort),
 		TLSConfig: tlsConfig,
 	}
 
