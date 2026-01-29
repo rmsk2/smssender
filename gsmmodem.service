@@ -1,0 +1,13 @@
+[Unit]
+Description=GSM Modem SMS Sender
+After=network.target
+
+[Service]
+Type=exec
+EnvironmentFile=/opt/gsmmodem/gsmmodem.env
+WorkingDirectory=/opt/gsmmodem
+ExecStart=/opt/gsmmodem/gsmmodem
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

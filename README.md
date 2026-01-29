@@ -51,6 +51,13 @@ export GSM_MODEM_HMAC_SECRET=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 ```
 
+# Installing `smssender` as a systemd service
+
+The file `gsmmodem.service` contains a systemd unit file for `smssender` which assumes that the binary and `gsmmodem.env` are stored
+in `/opt/gsmmodem`. Adapt the the unit and the env file to your needs and copy the service file to `/etc/systemd/system/gsmmodem.service`. After
+that execute `systemctl daemon-reload`, `systemctl enable gsmmodem.service` and `systemctl start gsmmodem`. Following that you can check the services
+log by using the command `journalctl -u gsmmodem -n`.
+
 # Calling the REST service
 
 As a default the service listens on port 4443. The listening port can be changed by setting the environment variable `GSM_MODEM_LISTENER_PORT` to
