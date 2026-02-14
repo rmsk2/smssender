@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"gsmmodem/tools"
+	"gsmmodem/jwt"
 	"io"
 	"log"
 	"net/http"
@@ -16,7 +16,7 @@ import (
 	"syscall"
 )
 
-const programVersion = "1.0.2"
+const programVersion = "1.1.0"
 const gsmModemFileRoot = "GSM_MODEM_FILE_ROOT"
 const gsmModemAllowedAudience = "GSM_MODEM_ALLOWED_AUDIENCE"
 const gsmModemHmacSecret = "GSM_MODEM_HMAC_SECRET"
@@ -67,7 +67,7 @@ func newSmsSender() *smsSender {
 }
 
 func (s *smsSender) sendFunc(w http.ResponseWriter, r *http.Request) {
-	jwtVerifier := tools.NewHs256Jwt(s.tokenSecret)
+	jwtVerifier := jwt.NewHs256JwtVerifier(s.tokenSecret)
 
 	token := r.Header.Get(authHeaderName)
 	parsedClaims, err := jwtVerifier.VerifyJwt(token)
@@ -218,9 +218,9 @@ func (s *smsSender) InstallSignalHandler() {
 }
 
 func (s *smsSender) genToken(subject string) {
-	jwt := tools.NewHs256Jwt(s.tokenSecret)
-	claims := tools.MakeClaims(subject, s.allowedAudience, s.expectedIssuerName)
-	token, _ := jwt.CreateJwt(claims)
+	jwtIssuer := jwt.NewHs256JwtSigner(s.tokenSecret)
+	claims := jwt.MakeClaims(subject, s.allowedAudience, s.expectedIssuerName)
+	token, _ := jwtIssuer.CreateJwt(claims)
 	fmt.Println(token)
 }
 
