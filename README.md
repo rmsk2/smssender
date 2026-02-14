@@ -36,7 +36,7 @@ When started with the option `-t` a JWT is created and then `smssender` exits. T
 The parameter of the `-t` option is included in the generated token as the `sub` (subject) field. Here an example of such a call: 
 `gsmmodem -t test_client`.
 
-You must at least set `GSM_MODEM_SIM_PIN` and if you don't change the default value for `GSM_MODEM_HMAC_SECRET`, your JWTs can be easily
+You must at least set `GSM_MODEM_SIM_PIN` and if you don't change the default value for `GSM_MODEM_VERIFICATION_SECRET`, your JWTs can be easily
 forged. You can issue your own TLS certificates using your own CA via [minica](https://github.com/rmsk2/minica).
 
 # Running the service (during development)
