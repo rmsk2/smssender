@@ -16,16 +16,18 @@ import (
 	"syscall"
 )
 
-const programVersion = "1.1.0"
+const programVersion = "1.2.0"
 const gsmModemFileRoot = "GSM_MODEM_FILE_ROOT"
 const gsmModemAllowedAudience = "GSM_MODEM_ALLOWED_AUDIENCE"
-const gsmModemHmacSecret = "GSM_MODEM_HMAC_SECRET"
+const gsmModemSigningSecret = "GSM_MODEM_SIGNING_SECRET"
+const gsmModemVerificationSecret = "GSM_MODEM_VERIFICATION_SECRET"
 const gsmModemFileCert = "GSM_MODEM_FILE_CERT"
 const gsmModemFileKey = "GSM_MODEM_FILE_KEY"
 const gsmModemNameIssuer = "GSM_MODEM_NAME_ISSUER"
 const gsmModemSimPin = "GSM_MODEM_SIM_PIN"
 const gsmmodemPort = "GSM_MODEM_SERIAL_PORT"
 const gsmmodemServerPort = "GSM_MODEM_LISTENER_PORT"
+const gsmModemUseEcdsa = "GSM_MODEM_USE_ECDSA"
 const authHeaderName = "X-Token"
 
 type SendRequest struct {
@@ -39,13 +41,17 @@ type smsSender struct {
 	fileNameCert       string
 	fileNameKey        string
 	expectedIssuerName string
-	tokenSecret        []byte
+	signingSecret      []byte
+	signerGen          func([]byte) *jwt.JwtSigner
+	verificationSecret []byte
+	verifierGen        func([]byte) *jwt.JwtVerifier
 	simPin             string
 	port               string
 	senderQueue        chan SendRequest
 	modem              Modem
 	doStop             bool
 	serverPort         uint16
+	canSign            bool
 }
 
 func newSmsSender() *smsSender {
@@ -55,19 +61,23 @@ func newSmsSender() *smsSender {
 		fileNameCert:       "server.crt",
 		fileNameKey:        "server.pem",
 		expectedIssuerName: "daheim_token_issuer",
-		tokenSecret:        []byte("a-string-secret-at-least-256-bits-long"),
+		signingSecret:      []byte("a-string-secret-at-least-256-bits-long"),
+		signerGen:          jwt.NewHs256JwtSigner,
+		verificationSecret: []byte("a-string-secret-at-least-256-bits-long"),
+		verifierGen:        jwt.NewHs256JwtVerifier,
 		simPin:             "0000",
 		senderQueue:        make(chan SendRequest, 10),
 		port:               "/dev/ttyUSB0",
 		doStop:             false,
 		serverPort:         4443,
+		canSign:            true,
 	}
 
 	return &res
 }
 
 func (s *smsSender) sendFunc(w http.ResponseWriter, r *http.Request) {
-	jwtVerifier := jwt.NewHs256JwtVerifier(s.tokenSecret)
+	jwtVerifier := s.verifierGen(s.verificationSecret)
 
 	token := r.Header.Get(authHeaderName)
 	parsedClaims, err := jwtVerifier.VerifyJwt(token)
@@ -151,12 +161,41 @@ func (s *smsSender) smsProcessor() {
 	os.Exit(0)
 }
 
+func (s *smsSender) checkForSigningSecret(secretValue []byte) (result bool) {
+	result = true
+
+	// This is a bit shoddy, but I do not want to change the signature of the signer and
+	// verifier creation functions to include an error at this moment as I would have to adapt
+	// all projects using the JWT package accordingly.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Provided signing secret is invalid")
+			result = false
+		}
+	}()
+
+	_ = s.signerGen(secretValue)
+
+	return result
+}
+
 func (s *smsSender) evalEnvironment() error {
 	var ok bool
+	hmacInUse := true
 
 	temp, ok := os.LookupEnv(gsmModemNameIssuer)
 	if ok {
 		s.expectedIssuerName = temp
+	}
+
+	_, ok = os.LookupEnv(gsmModemUseEcdsa)
+	if ok {
+		s.signerGen = jwt.NewEs256JwtSigner
+		s.verifierGen = jwt.NewEs256JwtVerifier
+		hmacInUse = false
+		log.Printf("Using ECDSA JWTs")
+	} else {
+		log.Printf("Using HMAC JWTs")
 	}
 
 	temp, ok = os.LookupEnv(gsmModemFileRoot)
@@ -179,9 +218,33 @@ func (s *smsSender) evalEnvironment() error {
 		return fmt.Errorf("You have to specify a PIN for the SIM card in the modem")
 	}
 
-	temp, ok = os.LookupEnv(gsmModemHmacSecret)
+	temp, ok = os.LookupEnv(gsmModemVerificationSecret)
 	if ok {
-		s.tokenSecret = []byte(temp)
+		s.verificationSecret = []byte(temp)
+	}
+
+	// Verify verfication secret. Panics, if secret has wrong structure. We need at least
+	// the verification secret, so it is OK if the program stops.
+	_ = s.verifierGen([]byte(s.verificationSecret))
+
+	if hmacInUse {
+		// When using an HMAC the two secrets are the same
+		s.signingSecret = s.verificationSecret
+		s.canSign = true
+	} else {
+		temp, ok = os.LookupEnv(gsmModemSigningSecret)
+		if ok {
+			s.signingSecret = []byte(temp)
+			// Verify signer secret.
+			s.canSign = s.checkForSigningSecret(s.signingSecret)
+
+			if !s.canSign {
+				log.Println("No valid signing secret provided")
+			}
+		} else {
+			s.canSign = false
+			log.Println("No signing secret provided")
+		}
 	}
 
 	temp, ok = os.LookupEnv(gsmModemAllowedAudience)
@@ -218,7 +281,11 @@ func (s *smsSender) InstallSignalHandler() {
 }
 
 func (s *smsSender) genToken(subject string) {
-	jwtIssuer := jwt.NewHs256JwtSigner(s.tokenSecret)
+	if !s.canSign {
+		log.Println("Can not create token. No signing secret configured")
+		return
+	}
+	jwtIssuer := s.signerGen(s.signingSecret)
 	claims := jwt.MakeClaims(subject, s.allowedAudience, s.expectedIssuerName)
 	token, _ := jwtIssuer.CreateJwt(claims)
 	fmt.Println(token)
