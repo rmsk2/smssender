@@ -5,8 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"hash"
 	"math/big"
@@ -37,19 +35,9 @@ type EsVerifier struct {
 }
 
 func NewEsSignerVerified(raw []byte, gen HashGenType, keyLen int) (*EsSigner, error) {
-	block, _ := pem.Decode(raw)
-	if block == nil {
-		return nil, fmt.Errorf("No correct PEM data")
-	}
-
-	priKeyAny, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	priKey, err := LoadEcdsaPrivateKey(raw)
 	if err != nil {
-		return nil, err
-	}
-
-	priKey, ok := priKeyAny.(*ecdsa.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("Incorrect Private Key type")
+		return nil, fmt.Errorf("Unable to load private key: %v", err)
 	}
 
 	return &EsSigner{
@@ -94,19 +82,9 @@ func (e *EsSigner) Sign(refVal []byte) []byte {
 }
 
 func NewEsVerifierVerified(raw []byte, gen HashGenType, keyLen int) (*EsVerifier, error) {
-	block, _ := pem.Decode(raw)
-	if block == nil {
-		return nil, fmt.Errorf("No correct PEM data")
-	}
-
-	pubKeyAny, err := x509.ParsePKIXPublicKey(block.Bytes)
+	pubKey, err := LoadEcdsaPublicKey(raw)
 	if err != nil {
-		return nil, err
-	}
-
-	pubKey, ok := pubKeyAny.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("Incorrect Public Key type")
+		return nil, fmt.Errorf("Unableto load public key: %v", err)
 	}
 
 	return &EsVerifier{

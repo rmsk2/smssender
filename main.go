@@ -16,7 +16,7 @@ import (
 	"syscall"
 )
 
-const programVersion = "1.2.0"
+const programVersion = "1.2.1"
 const gsmModemFileRoot = "GSM_MODEM_FILE_ROOT"
 const gsmModemAllowedAudience = "GSM_MODEM_ALLOWED_AUDIENCE"
 const gsmModemSigningSecret = "GSM_MODEM_SIGNING_SECRET"
@@ -161,24 +161,6 @@ func (s *smsSender) smsProcessor() {
 	os.Exit(0)
 }
 
-func (s *smsSender) checkForSigningSecret(secretValue []byte) (result bool) {
-	result = true
-
-	// This is a bit shoddy, but I do not want to change the signature of the signer and
-	// verifier creation functions to include an error at this moment as I would have to adapt
-	// all projects using the JWT package accordingly.
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("Provided signing secret is invalid")
-			result = false
-		}
-	}()
-
-	_ = s.signerGen(secretValue)
-
-	return result
-}
-
 func (s *smsSender) evalEnvironment() error {
 	var ok bool
 	hmacInUse := true
@@ -223,24 +205,29 @@ func (s *smsSender) evalEnvironment() error {
 		s.verificationSecret = []byte(temp)
 	}
 
-	// Verify verfication secret. Panics, if secret has wrong structure. We need at least
-	// the verification secret, so it is OK if the program stops.
-	_ = s.verifierGen([]byte(s.verificationSecret))
-
 	if hmacInUse {
-		// When using an HMAC the two secrets are the same
+		// When using an HMAC the two secrets are the same and all secrets are valid
 		s.signingSecret = s.verificationSecret
 		s.canSign = true
 	} else {
+		// Check if verfication secret is valid. We need at least
+		// the verification secret.
+		_, err := jwt.LoadEcdsaPublicKey(s.verificationSecret)
+		if err != nil {
+			return err
+		}
+
 		temp, ok = os.LookupEnv(gsmModemSigningSecret)
 		if ok {
 			s.signingSecret = []byte(temp)
-			// Verify signer secret.
-			s.canSign = s.checkForSigningSecret(s.signingSecret)
 
-			if !s.canSign {
-				log.Println("No valid signing secret provided")
+			// Verify signing secret
+			_, err := jwt.LoadEcdsaPrivateKey(s.signingSecret)
+			if err != nil {
+				log.Printf("No valid signing secret provided: %v", err)
 			}
+
+			s.canSign = (err == nil)
 		} else {
 			s.canSign = false
 			log.Println("No signing secret provided")
