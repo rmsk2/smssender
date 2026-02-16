@@ -21,9 +21,9 @@ variables can be set in order to configure the behaviour of `smssender`.
 |-|-|
 |`GSM_MODEM_FILE_ROOT`| Name of a file in which the root certificate for the server cert is stored. Default value: `private-tls-ca.pem`. |
 |`GSM_MODEM_ALLOWED_AUDIENCE`| The expected `aud` value in the JWT. Default value: `local_sms_sender`|
-|`GSM_MODEM_USE_ECDSA`| If set to any value `smssender` will use JWTs signed with ECDSA-256. This value controls how `GSM_MODEM_VERIFICATION_SECRET` and `GSM_MODEM_SIGNING_SECRET` are interpreted |
-|`GSM_MODEM_VERIFICATION_SECRET`| The HMAC secret or ECDSA public key which is used to verify JWTs. Default value: `a-string-secret-at-least-256-bits-long`. This value is required. If an HMAC signature algorithm is used this value is also copied to `GSM_MODEM_SIGNING_SECRET` |
-|`GSM_MODEM_SIGNING_SECRET`| The HMAC secret or ECDSA private key which is used to sign JWTs. Default value: `a-string-secret-at-least-256-bits-long`. If an HMAC signature algorithm is used this value is ignored. If an ECDSA signature algorithm is used this value is optional. If it is not provided signing a token via the `-t` option is not possible |
+|`GSM_MODEM_TOKEN_TYPE`| If set to `ES256`, `ES384`, `HS256` or `HS384` then `smssender` will make us of the corresponding algorithm to sign and verify JWTs. This value controls how `GSM_MODEM_VERIFICATION_SECRET` and `GSM_MODEM_SIGNING_SECRET` are interpreted.  If the variable is not set or set to a value not listed above the algorithm `HS256` is used |
+|`GSM_MODEM_VERIFICATION_SECRET`| The HMAC secret or ECDSA public key which is used to verify JWTs. Default value: `a-string-secret-at-least-256-bits-long`. This value is required. If an HMAC signature algorithm is used (i.e. `HS256` or `HS384`) this value is also copied to `GSM_MODEM_SIGNING_SECRET` |
+|`GSM_MODEM_SIGNING_SECRET`| The HMAC secret or ECDSA private key which is used to sign JWTs. Default value: `a-string-secret-at-least-256-bits-long`. If an HMAC signature algorithm is used this value is ignored. If an ECDSA signature algorithm (i.e. `ES256` or `ES384`) is used this value is optional. If it is not provided signing a token via the `-t` option is not possible |
 |`GSM_MODEM_FILE_CERT`| File which holds the TLS server cert used by `smssender`. Default value: `server.crt`|
 |`GSM_MODEM_FILE_KEY`| File which holds the TLS server cert private key used by `smssender`. Default value: `server.pem`|
 |`GSM_MODEM_NAME_ISSUER`| The expected `iss` value in the JWT. Default value: `daheim_token_issuer`|

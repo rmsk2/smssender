@@ -16,7 +16,7 @@ import (
 	"syscall"
 )
 
-const programVersion = "1.2.1"
+const programVersion = "1.2.2"
 const gsmModemFileRoot = "GSM_MODEM_FILE_ROOT"
 const gsmModemAllowedAudience = "GSM_MODEM_ALLOWED_AUDIENCE"
 const gsmModemSigningSecret = "GSM_MODEM_SIGNING_SECRET"
@@ -27,7 +27,7 @@ const gsmModemNameIssuer = "GSM_MODEM_NAME_ISSUER"
 const gsmModemSimPin = "GSM_MODEM_SIM_PIN"
 const gsmmodemPort = "GSM_MODEM_SERIAL_PORT"
 const gsmmodemServerPort = "GSM_MODEM_LISTENER_PORT"
-const gsmModemUseEcdsa = "GSM_MODEM_USE_ECDSA"
+const gsmModemTokenType = "GSM_MODEM_TOKEN_TYPE"
 const authHeaderName = "X-Token"
 
 type SendRequest struct {
@@ -170,14 +170,35 @@ func (s *smsSender) evalEnvironment() error {
 		s.expectedIssuerName = temp
 	}
 
-	_, ok = os.LookupEnv(gsmModemUseEcdsa)
+	tokenType, ok := os.LookupEnv(gsmModemTokenType)
 	if ok {
-		s.signerGen = jwt.NewEs256JwtSigner
-		s.verifierGen = jwt.NewEs256JwtVerifier
-		hmacInUse = false
-		log.Printf("Using ECDSA JWTs")
+		switch tokenType {
+		case jwt.AlgEs256:
+			s.signerGen = jwt.NewEs256JwtSigner
+			s.verifierGen = jwt.NewEs256JwtVerifier
+			hmacInUse = false
+			log.Printf("Using ECDSA-256 JWTs")
+		case jwt.AlgEs384:
+			s.signerGen = jwt.NewEs384JwtSigner
+			s.verifierGen = jwt.NewEs384JwtVerifier
+			hmacInUse = false
+			log.Printf("Using ECDSA-384 JWTs")
+		case jwt.AlgHs384:
+			s.signerGen = jwt.NewHs384JwtSigner
+			s.verifierGen = jwt.NewHs384JwtVerifier
+			hmacInUse = true
+			log.Printf("Using HMAC SHA-384 JWTs")
+		default:
+			s.signerGen = jwt.NewHs256JwtSigner
+			s.verifierGen = jwt.NewHs256JwtVerifier
+			hmacInUse = true
+			log.Printf("Using HMAC SHA-256 JWTs")
+		}
 	} else {
-		log.Printf("Using HMAC JWTs")
+		s.signerGen = jwt.NewHs256JwtSigner
+		s.verifierGen = jwt.NewHs256JwtVerifier
+		hmacInUse = true
+		log.Printf("Using HMAC SHA-256 JWTs")
 	}
 
 	temp, ok = os.LookupEnv(gsmModemFileRoot)
