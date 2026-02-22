@@ -1,5 +1,5 @@
 // @title           GSM Modem SMS Sender API
-// @version         1.2.3
+// @version         1.2.4
 // @description     Sends SMS messages via a locally attached GSM modem. Requests are authenticated using a JWT supplied in the X-Token header.
 //
 // @securityDefinitions.apikey XTokenAuth
@@ -31,7 +31,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
-const programVersion = "1.2.3"
+const programVersion = "1.2.4"
 const gsmModemFileRoot = "GSM_MODEM_FILE_ROOT"
 const gsmModemAllowedAudience = "GSM_MODEM_ALLOWED_AUDIENCE"
 const gsmModemSigningSecret = "GSM_MODEM_SIGNING_SECRET"
@@ -169,6 +169,11 @@ func (s *smsSender) initModem() error {
 		return err
 	}
 	return s.modem.Init()
+}
+
+func (s *smsSender) StartProcessor(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go s.smsProcessor(wg)
 }
 
 func (s *smsSender) smsProcessor(wg *sync.WaitGroup) {
@@ -392,13 +397,12 @@ func main() {
 	log.Println("Modem is initialized")
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go sender.smsProcessor(&wg)
+	sender.StartProcessor(&wg)
 	sender.InstallSignalHandler(server)
 
 	err = server.ListenAndServeTLS(sender.fileNameCert, sender.fileNameKey)
 	if err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	close(sender.senderQueue)
