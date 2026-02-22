@@ -1,6 +1,16 @@
+// @title           GSM Modem SMS Sender API
+// @version         1.2.2
+// @description     Sends SMS messages via a locally attached GSM modem. Requests are authenticated using a JWT supplied in the X-Token header.
+//
+// @securityDefinitions.apikey XTokenAuth
+// @in              header
+// @name            X-Token
+// @description     JWT token for authentication. Audience must match GSM_MODEM_ALLOWED_AUDIENCE and issuer must match GSM_MODEM_NAME_ISSUER.
+
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -13,10 +23,15 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
+
+	_ "gsmmodem/docs"
+
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
-const programVersion = "1.2.2"
+const programVersion = "1.2.3"
 const gsmModemFileRoot = "GSM_MODEM_FILE_ROOT"
 const gsmModemAllowedAudience = "GSM_MODEM_ALLOWED_AUDIENCE"
 const gsmModemSigningSecret = "GSM_MODEM_SIGNING_SECRET"
@@ -28,11 +43,15 @@ const gsmModemSimPin = "GSM_MODEM_SIM_PIN"
 const gsmmodemPort = "GSM_MODEM_SERIAL_PORT"
 const gsmmodemServerPort = "GSM_MODEM_LISTENER_PORT"
 const gsmModemTokenType = "GSM_MODEM_TOKEN_TYPE"
+const gsmModemDummy = "GSM_MODEM_DUMMY"
 const authHeaderName = "X-Token"
 
+// SendRequest holds the parameters for an SMS send operation.
 type SendRequest struct {
-	Message string `json:"message"`
-	PhoneNr string `json:"phone_nr"`
+	// The text of the SMS. Max 160 characters. German umlauts are supported.
+	Message string `json:"message" example:"Hello, this is a test message"`
+	// Recipient phone number with country code, without leading plus sign.
+	PhoneNr string `json:"phone_nr" example:"4915123456789"`
 }
 
 type smsSender struct {
@@ -49,9 +68,9 @@ type smsSender struct {
 	port               string
 	senderQueue        chan SendRequest
 	modem              Modem
-	doStop             bool
 	serverPort         uint16
 	canSign            bool
+	useDummy           bool
 }
 
 func newSmsSender() *smsSender {
@@ -68,7 +87,6 @@ func newSmsSender() *smsSender {
 		simPin:             "0000",
 		senderQueue:        make(chan SendRequest, 10),
 		port:               "/dev/ttyUSB0",
-		doStop:             false,
 		serverPort:         4443,
 		canSign:            true,
 	}
@@ -76,6 +94,20 @@ func newSmsSender() *smsSender {
 	return &res
 }
 
+// sendFunc handles incoming SMS send requests.
+//
+// @Summary      Send an SMS message
+// @Description  Queues an SMS message for delivery via the attached GSM modem. The request body must be valid JSON containing the recipient phone number and message text.
+// @Tags         sms
+// @Accept       json
+// @Param        request  body      SendRequest true  "SMS send request"
+// @Success      200      "Message queued successfully"
+// @Failure      400      {string}  string      "Invalid request body"
+// @Failure      401      {string}  string      "Authentication failed — JWT missing or invalid"
+// @Failure      403      {string}  string      "Authentication failed — wrong audience or issuer"
+// @Failure      500      {string}  string      "Internal server error"
+// @Security     XTokenAuth
+// @Router       /localsender/send [post]
 func (s *smsSender) sendFunc(w http.ResponseWriter, r *http.Request) {
 	jwtVerifier := s.verifierGen(s.verificationSecret)
 
@@ -128,17 +160,22 @@ func (s *smsSender) sendFunc(w http.ResponseWriter, r *http.Request) {
 
 func (s *smsSender) initModem() error {
 	var err error
-	s.modem, err = NewGsmModem(s.simPin, s.port)
+	if s.useDummy {
+		s.modem, err = NewDummyModem()
+	} else {
+		s.modem, err = NewGsmModem(s.simPin, s.port)
+	}
 	if err != nil {
 		return err
 	}
 	return s.modem.Init()
 }
 
-func (s *smsSender) smsProcessor() {
-	for !s.doStop {
-		request := <-s.senderQueue
-		if s.doStop {
+func (s *smsSender) smsProcessor(wg *sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		request, ok := <-s.senderQueue
+		if !ok {
 			break
 		}
 
@@ -158,7 +195,6 @@ func (s *smsSender) smsProcessor() {
 	log.Println("Closing modem")
 	s.modem.Close()
 	log.Println("Modem closed")
-	os.Exit(0)
 }
 
 func (s *smsSender) evalEnvironment() error {
@@ -275,16 +311,17 @@ func (s *smsSender) evalEnvironment() error {
 		s.serverPort = uint16(p)
 	}
 
+	_, s.useDummy = os.LookupEnv(gsmModemDummy)
+
 	return nil
 }
 
-func (s *smsSender) InstallSignalHandler() {
+func (s *smsSender) InstallSignalHandler(server *http.Server) {
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 		<-sigChan
-		s.doStop = true
-		close(s.senderQueue)
+		server.Shutdown(context.Background())
 	}()
 }
 
@@ -342,6 +379,9 @@ func main() {
 	}
 
 	http.HandleFunc("POST /localsender/send", sender.sendFunc)
+	http.HandleFunc("/swagger/", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+	))
 
 	log.Printf("SMS-Sender. Version: %s", programVersion)
 	log.Println("Initializing modem")
@@ -351,11 +391,17 @@ func main() {
 	}
 	log.Println("Modem is initialized")
 
-	go sender.smsProcessor()
-	sender.InstallSignalHandler()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go sender.smsProcessor(&wg)
+	sender.InstallSignalHandler(server)
 
 	err = server.ListenAndServeTLS(sender.fileNameCert, sender.fileNameKey)
-	if err != nil {
-		panic(err)
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
 	}
+
+	close(sender.senderQueue)
+	wg.Wait()
+	log.Println("Server stopped")
 }

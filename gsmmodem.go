@@ -281,3 +281,18 @@ func (g *GsmModem) Init() error {
 
 	return nil
 }
+
+type DummyModem struct{}
+
+func NewDummyModem() (*DummyModem, error) {
+	return &DummyModem{}, nil
+}
+
+func (d *DummyModem) Init() error { return nil }
+
+func (d *DummyModem) SendMessage(phoneNr string, message string) error {
+	fmt.Printf("DummyModem: SendMessage to %s: %s\n", phoneNr, message)
+	return nil
+}
+
+func (d *DummyModem) Close() {}

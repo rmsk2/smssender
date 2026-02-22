@@ -30,6 +30,7 @@ variables can be set in order to configure the behaviour of `smssender`.
 |`GSM_MODEM_SIM_PIN`| The PIN of the SIM card in the modem. Default value: `0000`|
 |`GSM_MODEM_SERIAL_PORT`| The serial device to to be used. Default value: `/dev/ttyUSB0`|
 |`GSM_MODEM_LISTENER_PORT`| The TCP port on which the service should listen. Default value: 4443|
+|`GSM_MODEM_DUMMY`| If set to any value, a dummy modem is used instead of a real GSM modem. The dummy modem prints the phone number and message to stdout instead of sending an SMS. Useful for development and testing without physical hardware.|
 
 As the software needs to be executed on a machine to which a modem is connected it is a bit difficult to run it in a kubernetes cluster.
 When started with the option `-t` a JWT is created and then `smssender` exits. This can be used to for instance generate a token for `mobilenotifier`.
