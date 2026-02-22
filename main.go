@@ -99,7 +99,7 @@ func newSmsSender() *smsSender {
 //
 // @Summary      Send an SMS message
 // @Description  Queues an SMS message for delivery via the attached GSM modem. The request body must be valid JSON containing the recipient phone number and message text.
-// @Tags         sms
+// @Tags         SMS
 // @Accept       json
 // @Param        request  body      SendRequest true  "SMS send request"
 // @Success      200      "Message queued successfully"
