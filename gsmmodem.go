@@ -23,7 +23,7 @@ type GsmModem struct {
 	port   serial.Port
 }
 
-func NewGsmModem(simPin string, device string) (*GsmModem, error) {
+func NewGsmModem(simPin string, device string) (Modem, error) {
 	port, err := setupPort(device, 115200, 20)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to open port: %s: %v", device, err)
@@ -284,7 +284,7 @@ func (g *GsmModem) Init() error {
 
 type DummyModem struct{}
 
-func NewDummyModem() (*DummyModem, error) {
+func NewDummyModem(simPin string, device string) (Modem, error) {
 	return &DummyModem{}, nil
 }
 

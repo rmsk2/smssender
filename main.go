@@ -1,5 +1,5 @@
 // @title           GSM Modem SMS Sender API
-// @version         1.2.4
+// @version         1.2.5
 // @description     Sends SMS messages via a locally attached GSM modem. Requests are authenticated using a JWT supplied in the X-Token header.
 //
 // @securityDefinitions.apikey XTokenAuth
@@ -31,7 +31,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
-const programVersion = "1.2.4"
+const programVersion = "1.2.5"
 const gsmModemFileRoot = "GSM_MODEM_FILE_ROOT"
 const gsmModemAllowedAudience = "GSM_MODEM_ALLOWED_AUDIENCE"
 const gsmModemSigningSecret = "GSM_MODEM_SIGNING_SECRET"
@@ -64,13 +64,13 @@ type smsSender struct {
 	signerGen          func([]byte) *jwt.JwtSigner
 	verificationSecret []byte
 	verifierGen        func([]byte) *jwt.JwtVerifier
+	modenGen           func(string, string) (Modem, error)
 	simPin             string
 	port               string
 	senderQueue        chan SendRequest
 	modem              Modem
 	serverPort         uint16
 	canSign            bool
-	useDummy           bool
 }
 
 func newSmsSender() *smsSender {
@@ -89,6 +89,7 @@ func newSmsSender() *smsSender {
 		port:               "/dev/ttyUSB0",
 		serverPort:         4443,
 		canSign:            true,
+		modenGen:           NewGsmModem,
 	}
 
 	return &res
@@ -160,11 +161,7 @@ func (s *smsSender) sendFunc(w http.ResponseWriter, r *http.Request) {
 
 func (s *smsSender) initModem() error {
 	var err error
-	if s.useDummy {
-		s.modem, err = NewDummyModem()
-	} else {
-		s.modem, err = NewGsmModem(s.simPin, s.port)
-	}
+	s.modem, err = s.modenGen(s.simPin, s.port)
 	if err != nil {
 		return err
 	}
@@ -316,7 +313,10 @@ func (s *smsSender) evalEnvironment() error {
 		s.serverPort = uint16(p)
 	}
 
-	_, s.useDummy = os.LookupEnv(gsmModemDummy)
+	_, useDummy := os.LookupEnv(gsmModemDummy)
+	if useDummy {
+		s.modenGen = NewDummyModem
+	}
 
 	return nil
 }
