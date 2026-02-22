@@ -91,3 +91,5 @@ be provided in a header with the key `X-Token`. Here an example using `curl`.
 ```
 curl -X POST https://hostname:4443/localsender/send -H 'Content-Type: application/json; charset=utf-8' -H 'X-Token: xxxxxxxxxxxxxxxxxxxxxxxxxxx' --data-binary @test_body.json
 ```
+
+The swagger API description can be opened using the path `/swagger/index.html`.
