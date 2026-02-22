@@ -1,5 +1,5 @@
 // @title           GSM Modem SMS Sender API
-// @version         1.2.2
+// @version         1.2.3
 // @description     Sends SMS messages via a locally attached GSM modem. Requests are authenticated using a JWT supplied in the X-Token header.
 //
 // @securityDefinitions.apikey XTokenAuth
